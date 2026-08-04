@@ -2,7 +2,6 @@ package dev.alastorkaneki.launcherbrowser;
 
 import android.app.Activity;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.IBinder;
@@ -85,9 +84,9 @@ final class ShellExecutor {
         }
     }
 
-    static Result executeBlocking(Context context, String command) throws Exception {
+    static Result executeBlocking(String command) throws Exception {
         if (!hasPermission()) throw new SecurityException("Shizuku permission is not granted");
-        IPrivilegedShell privilegedShell = ensureService(context.getApplicationContext());
+        IPrivilegedShell privilegedShell = ensureService();
         String[] response = privilegedShell.execute(command);
         if (response == null || response.length < 3) throw new IllegalStateException("Invalid shell service response");
         int exitCode;
@@ -99,7 +98,7 @@ final class ShellExecutor {
         return new Result(exitCode, response[1] == null ? "" : response[1], response[2] == null ? "" : response[2], true);
     }
 
-    private static IPrivilegedShell ensureService(Context context) throws Exception {
+    private static IPrivilegedShell ensureService() throws Exception {
         IPrivilegedShell current = service;
         if (current != null && current.asBinder().pingBinder()) return current;
 
@@ -109,7 +108,7 @@ final class ShellExecutor {
             if (current != null && current.asBinder().pingBinder()) return current;
             if (connectionLatch == null || connectionLatch.getCount() == 0) {
                 connectionLatch = new CountDownLatch(1);
-                serviceArgs = new Shizuku.UserServiceArgs(new ComponentName(context, PrivilegedShellService.class))
+                serviceArgs = new Shizuku.UserServiceArgs(new ComponentName(BuildConfig.APPLICATION_ID, PrivilegedShellService.class.getName()))
                         .daemon(false)
                         .processNameSuffix("privileged_shell")
                         .debuggable(BuildConfig.DEBUG)
@@ -118,7 +117,7 @@ final class ShellExecutor {
                     Shizuku.bindUserService(serviceArgs, CONNECTION);
                 } catch (Throwable error) {
                     connectionLatch.countDown();
-                    throw error;
+                    throw new Exception("Unable to bind privileged shell service", error);
                 }
             }
             latch = connectionLatch;

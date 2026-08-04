@@ -1,22 +1,22 @@
 package dev.alastorkaneki.launcherbrowser;
 
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.os.IBinder;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import rikka.shizuku.Shizuku;
 
 final class ShellExecutor {
     static final int REQUEST_CODE = 4102;
-    private static final ExecutorService IO = Executors.newCachedThreadPool();
+    private static final Object SERVICE_LOCK = new Object();
+    private static volatile IPrivilegedShell service;
+    private static volatile CountDownLatch connectionLatch;
+    private static volatile Shizuku.UserServiceArgs serviceArgs;
 
     static final class Result {
         final int exitCode;
@@ -31,6 +31,18 @@ final class ShellExecutor {
             this.privileged = privileged;
         }
     }
+
+    private static final ServiceConnection CONNECTION = new ServiceConnection() {
+        @Override public void onServiceConnected(ComponentName name, IBinder binder) {
+            service = IPrivilegedShell.Stub.asInterface(binder);
+            CountDownLatch latch = connectionLatch;
+            if (latch != null) latch.countDown();
+        }
+
+        @Override public void onServiceDisconnected(ComponentName name) {
+            service = null;
+        }
+    };
 
     private ShellExecutor() {}
 
@@ -72,30 +84,49 @@ final class ShellExecutor {
         }
     }
 
-    @SuppressWarnings("deprecation")
     static Result executeBlocking(String command) throws Exception {
-        boolean privileged = hasPermission();
-        Process process;
-        if (privileged) {
-            process = Shizuku.newProcess(new String[]{"/system/bin/sh", "-c", command}, null, null);
-        } else {
-            process = new ProcessBuilder("/system/bin/sh", "-c", command).redirectErrorStream(false).start();
+        if (!hasPermission()) throw new SecurityException("Shizuku permission is not granted");
+        IPrivilegedShell privilegedShell = ensureService();
+        String[] response = privilegedShell.execute(command);
+        if (response == null || response.length < 3) throw new IllegalStateException("Invalid shell service response");
+        int exitCode;
+        try {
+            exitCode = Integer.parseInt(response[0]);
+        } catch (NumberFormatException ignored) {
+            exitCode = -1;
         }
-        Future<String> stdout = IO.submit(read(process.getInputStream()));
-        Future<String> stderr = IO.submit(read(process.getErrorStream()));
-        int exitCode = process.waitFor();
-        return new Result(exitCode, stdout.get(), stderr.get(), privileged);
+        return new Result(exitCode, response[1] == null ? "" : response[1], response[2] == null ? "" : response[2], true);
     }
 
-    private static Callable<String> read(InputStream stream) {
-        return () -> {
-            StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) output.append(line).append('\n');
+    private static IPrivilegedShell ensureService() throws Exception {
+        IPrivilegedShell current = service;
+        if (current != null && current.asBinder().pingBinder()) return current;
+
+        CountDownLatch latch;
+        synchronized (SERVICE_LOCK) {
+            current = service;
+            if (current != null && current.asBinder().pingBinder()) return current;
+            if (connectionLatch == null || connectionLatch.getCount() == 0) {
+                connectionLatch = new CountDownLatch(1);
+                serviceArgs = new Shizuku.UserServiceArgs(new ComponentName(BuildConfig.APPLICATION_ID, PrivilegedShellService.class.getName()))
+                        .daemon(false)
+                        .processNameSuffix("privileged_shell")
+                        .debuggable(BuildConfig.DEBUG)
+                        .version(BuildConfig.VERSION_CODE);
+                try {
+                    Shizuku.bindUserService(serviceArgs, CONNECTION);
+                } catch (Throwable error) {
+                    connectionLatch.countDown();
+                    throw new Exception("Unable to bind privileged shell service", error);
+                }
             }
-            return output.toString();
-        };
+            latch = connectionLatch;
+        }
+
+        if (!latch.await(15, TimeUnit.SECONDS)) throw new IllegalStateException("Timed out connecting to privileged shell service");
+        current = service;
+        if (current == null || !current.asBinder().pingBinder()) throw new IllegalStateException("Privileged shell service did not connect");
+        return current;
     }
 
     static String quote(String value) {

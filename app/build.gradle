@@ -33,6 +33,10 @@ android {
             versionNameSuffix '-debug'
         }
     }
+    buildFeatures {
+        aidl true
+        buildConfig true
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -41,6 +45,7 @@ android {
 }
 
 dependencies {
+    implementation 'androidx.annotation:annotation:1.9.1'
     implementation 'dev.rikka.shizuku:api:13.1.5'
     implementation 'dev.rikka.shizuku:provider:13.1.5'
 }

@@ -1,2 +1,4 @@
 -keep class rikka.shizuku.** { *; }
 -dontwarn rikka.shizuku.**
+-keep class dev.alastorkaneki.launcherbrowser.PrivilegedShellService { public <init>(); public <init>(android.content.Context); *; }
+-keep interface dev.alastorkaneki.launcherbrowser.IPrivilegedShell { *; }

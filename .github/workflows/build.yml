@@ -25,10 +25,10 @@ jobs:
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Launcher-Browser-0.1.0-alpha-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Launcher-Browser-0.1.1-alpha-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Launcher-Browser-0.1.0-alpha-debug
-          path: Launcher-Browser-0.1.0-alpha-debug.apk
+          name: Launcher-Browser-0.1.1-alpha-debug
+          path: Launcher-Browser-0.1.1-alpha-debug.apk
           if-no-files-found: error
           retention-days: 30

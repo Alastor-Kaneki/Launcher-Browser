@@ -92,6 +92,11 @@ public final class SettingsActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 54)));
 
         addSubtitle(root, "Browser power tools");
+        addAction(root, "Open Opera GX Store", () -> {
+            Intent browser = new Intent(this, BrowserActivity.class);
+            browser.setData(Uri.parse("https://store.gx.me/mods/"));
+            startActivity(browser);
+        });
         addAction(root, "Lite Extensions", () -> startActivity(new Intent(this, ExtensionsActivity.class)));
         addAction(root, "Userscripts and userstyles", () -> startActivity(new Intent(this, UserscriptManagerActivity.class)));
         addAction(root, "Widget Space (isolated process)", () -> startActivity(new Intent(this, WidgetSpaceActivity.class)));
@@ -127,9 +132,9 @@ public final class SettingsActivity extends Activity {
 
         addSubtitle(root, "About");
         TextView about = label(
-                "Launcher Browser 0.1.3-alpha\n"
-                        + "Native Android launcher + WebView browser + isolated widget host + icon packs + Shizuku shell + userscripts + Lite Extensions.\n\n"
-                        + "Third-party widgets no longer inflate inside the launcher process. Userscripts run only inside Launcher Browser.");
+                "Launcher Browser 0.1.4-alpha\n"
+                        + "Native Android launcher + WebView browser + isolated widget host + icon packs + Shizuku shell + userscripts + Lite Extensions + native Opera GX mod downloads.\n\n"
+                        + "On an Opera GX Store mod page, tap the GX button to save the original .crx or extract the contained mod as a .zip. Downloads are never installed or activated automatically.");
         about.setTextColor(Color.LTGRAY);
         root.addView(about);
         setContentView(scroll);

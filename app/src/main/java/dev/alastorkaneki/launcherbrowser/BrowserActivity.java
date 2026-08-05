@@ -44,6 +44,7 @@ public final class BrowserActivity extends Activity {
     private FrameLayout content;
     private LinearLayout tabStrip;
     private EditText address;
+    private Button gxButton;
     private int selected = -1;
 
     private static final class BrowserTab {
@@ -62,26 +63,35 @@ public final class BrowserActivity extends Activity {
         Ui.applyImmersive(this);
         buildUi();
         restoreTabs();
-        Uri incoming = getIntent().getData();
-        if (incoming != null) {
-            if (tabs.isEmpty()) addTab(incoming.toString(), true);
-            else {
-                current().webView.loadUrl(incoming.toString());
-                address.setText(incoming.toString());
-            }
-        }
+        handleIncomingIntent(getIntent());
         if (tabs.isEmpty()) addTab(HOME, true);
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        Uri data = intent.getData();
-        if (data != null) {
-            if (tabs.isEmpty()) addTab(data.toString(), true);
-            else {
-                current().webView.loadUrl(data.toString());
-                address.setText(data.toString());
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        String incoming = intent.getDataString();
+        if ((incoming == null || incoming.isBlank()) && Intent.ACTION_SEND.equals(intent.getAction())) {
+            CharSequence shared = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+            if (shared != null) {
+                String text = shared.toString();
+                incoming = GxModDownloader.extractStorePageUrl(text);
+                if (incoming == null) incoming = GxModDownloader.resolveCrxUrlFromText(text);
+            }
+        }
+        if (incoming == null || incoming.isBlank()) return;
+        if (tabs.isEmpty()) {
+            addTab(incoming, true);
+        } else {
+            BrowserTab tab = current();
+            if (tab != null) {
+                tab.webView.loadUrl(incoming);
+                address.setText(incoming);
             }
         }
     }
@@ -165,6 +175,13 @@ public final class BrowserActivity extends Activity {
             if (tab != null) tab.webView.reload();
         });
         toolbar.addView(reload, compactParams());
+
+        gxButton = compact("GX");
+        gxButton.setTextSize(12);
+        gxButton.setContentDescription("Download Opera GX mod as a file");
+        gxButton.setVisibility(View.GONE);
+        gxButton.setOnClickListener(v -> openGxDownloader());
+        toolbar.addView(gxButton, compactParams());
 
         Button menu = compact("⋮");
         menu.setOnClickListener(this::showMenu);
@@ -276,16 +293,20 @@ public final class BrowserActivity extends Activity {
                     if (BrowserExtensions.shouldBlock(BrowserActivity.this, request.getUrl())) {
                         return BrowserExtensions.blockedResponse();
                     }
-                } catch (Throwable ignored) {
-                }
+                } catch (Throwable ignored) {}
                 return super.shouldInterceptRequest(view, request);
             }
 
             @Override public void onPageFinished(WebView view, String url) {
-                if (view == currentWebView()) address.setText(displayUrl(url));
+                if (view == currentWebView()) {
+                    address.setText(displayUrl(url));
+                    updateGxButton(url);
+                }
                 try { BrowserExtensions.apply(BrowserActivity.this, view, url); }
                 catch (Throwable error) {
-                    Toast.makeText(BrowserActivity.this, "Extension failed safely: " + safeMessage(error), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(BrowserActivity.this,
+                            "Extension failed safely: " + safeMessage(error),
+                            Toast.LENGTH_SHORT).show();
                 }
             }
 
@@ -299,8 +320,11 @@ public final class BrowserActivity extends Activity {
                 }
                 content.removeAllViews();
                 selected = -1;
+                updateGxButton(null);
                 addTab(HOME, true);
-                Toast.makeText(BrowserActivity.this, "A page renderer crashed; the browser recovered.", Toast.LENGTH_LONG).show();
+                Toast.makeText(BrowserActivity.this,
+                        "A page renderer crashed; the browser recovered.",
+                        Toast.LENGTH_LONG).show();
                 return true;
             }
         });
@@ -364,6 +388,7 @@ public final class BrowserActivity extends Activity {
             tabs.get(i).tabButton.setAlpha(i == selected ? 1f : .62f);
         }
         address.setText(displayUrl(view.getUrl()));
+        updateGxButton(view.getUrl());
     }
 
     private void closeTab(int index) {
@@ -373,6 +398,7 @@ public final class BrowserActivity extends Activity {
         try { tab.webView.destroy(); } catch (Throwable ignored) {}
         if (tabs.isEmpty()) {
             selected = -1;
+            updateGxButton(null);
             addTab(HOME, true);
         } else {
             selectTab(Math.min(index, tabs.size() - 1));
@@ -404,11 +430,26 @@ public final class BrowserActivity extends Activity {
         return url;
     }
 
+    private void updateGxButton(String url) {
+        if (gxButton == null) return;
+        gxButton.setVisibility(GxModDownloader.isGxModPage(url) ? View.VISIBLE : View.GONE);
+    }
+
+    private void openGxDownloader() {
+        WebView webView = currentWebView();
+        if (webView == null) {
+            Toast.makeText(this, "No active browser tab", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        GxModDownloader.open(this, webView);
+    }
+
     private void showMenu(View anchor) {
         PopupMenu menu = new PopupMenu(this, anchor);
         menu.getMenu().add("New tab");
         menu.getMenu().add("Close tab");
         menu.getMenu().add("Desktop site");
+        menu.getMenu().add("Download GX mod");
         menu.getMenu().add("Userscripts");
         menu.getMenu().add("Extensions");
         menu.getMenu().add("Share");
@@ -422,6 +463,7 @@ public final class BrowserActivity extends Activity {
                 case "New tab" -> addTab(HOME, true);
                 case "Close tab" -> closeTab(selected);
                 case "Desktop site" -> toggleDesktop();
+                case "Download GX mod" -> openGxDownloader();
                 case "Userscripts" -> startActivity(new Intent(this, UserscriptManagerActivity.class));
                 case "Extensions" -> startActivity(new Intent(this, ExtensionsActivity.class));
                 case "Share" -> shareUrl();
@@ -450,7 +492,9 @@ public final class BrowserActivity extends Activity {
             tab.webView.getSettings().setUseWideViewPort(false);
         }
         tab.webView.reload();
-        Toast.makeText(this, tab.desktop ? "Desktop site enabled" : "Mobile site enabled", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this,
+                tab.desktop ? "Desktop site enabled" : "Mobile site enabled",
+                Toast.LENGTH_SHORT).show();
     }
 
     private void shareUrl() {
@@ -521,7 +565,7 @@ public final class BrowserActivity extends Activity {
                 + "body{display:grid;place-items:center}.card{padding:28px;text-align:center;border:1px solid #8b5cf6;border-radius:28px;background:#0a0a0ecc;max-width:82%}"
                 + "h1{margin:0 0 8px}p{color:#c7c7d2}.small{font-size:12px;color:#8f8fa3}</style></head><body><div class='card'><h1>Launcher Browser</h1>"
                 + "<p>Use the address bar to search or open a site.</p>"
-                + "<p class='small'>Userscripts and Lite Extensions are available from the menu.</p></div></body></html>";
+                + "<p class='small'>GX mod downloads, userscripts and Lite Extensions are built in.</p></div></body></html>";
     }
 
     private void loadHome(WebView webView) {

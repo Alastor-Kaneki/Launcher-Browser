@@ -32,6 +32,11 @@ public final class SettingsActivity extends Activity {
         buildUi();
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        Ui.applyImmersive(this);
+    }
+
     private void buildUi() {
         ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
@@ -66,23 +71,40 @@ public final class SettingsActivity extends Activity {
         addSubtitle(root, "Icon pack");
         List<IconPackManager.Pack> packs = IconPackManager.discover(this);
         Spinner spinner = new Spinner(this);
-        ArrayAdapter<IconPackManager.Pack> packAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, packs);
+        ArrayAdapter<IconPackManager.Pack> packAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_dropdown_item,
+                packs);
         spinner.setAdapter(packAdapter);
         String selectedPack = Prefs.get(this).getString(Prefs.ICON_PACK, "");
-        for (int i = 0; i < packs.size(); i++) if (packs.get(i).packageName.equals(selectedPack)) spinner.setSelection(i);
+        for (int i = 0; i < packs.size(); i++) {
+            if (packs.get(i).packageName.equals(selectedPack)) spinner.setSelection(i);
+        }
         spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
-                Prefs.get(SettingsActivity.this).edit().putString(Prefs.ICON_PACK, packs.get(position).packageName).apply();
+                Prefs.get(SettingsActivity.this).edit().putString(
+                        Prefs.ICON_PACK,
+                        packs.get(position).packageName).apply();
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
-        root.addView(spinner, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 54)));
+        root.addView(spinner, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 54)));
+
+        addSubtitle(root, "Browser power tools");
+        addAction(root, "Lite Extensions", () -> startActivity(new Intent(this, ExtensionsActivity.class)));
+        addAction(root, "Userscripts and userstyles", () -> startActivity(new Intent(this, UserscriptManagerActivity.class)));
+        addAction(root, "Widget Space (isolated process)", () -> startActivity(new Intent(this, WidgetSpaceActivity.class)));
 
         addSubtitle(root, "Default roles");
         addAction(root, "Set as default home app", () -> requestRole(RoleManager.ROLE_HOME));
         addAction(root, "Set as default browser", () -> requestRole(RoleManager.ROLE_BROWSER));
         addAction(root, "Allow APK installs from this browser", () -> {
-            if (Build.VERSION.SDK_INT >= 26) startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
+            if (Build.VERSION.SDK_INT >= 26) {
+                startActivity(new Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName())));
+            }
         });
 
         addSubtitle(root, "Shizuku");
@@ -98,12 +120,16 @@ public final class SettingsActivity extends Activity {
         addSubtitle(root, "Browser data");
         addAction(root, "Clear cookies, cache and site storage", () -> new AlertDialog.Builder(this)
                 .setTitle("Clear browser data?")
-                .setMessage("This signs you out of websites and clears cached pages. Downloads are not deleted.")
+                .setMessage("This signs you out of websites and clears cached pages. Downloads, userscripts and extension settings are not deleted.")
                 .setPositiveButton("Clear", (dialog, which) -> clearBrowserData())
-                .setNegativeButton("Cancel", null).show());
+                .setNegativeButton("Cancel", null)
+                .show());
 
         addSubtitle(root, "About");
-        TextView about = label("Launcher Browser 0.1.0-alpha\nNative Android launcher + WebView browser + widget host + icon packs + Shizuku shell.\n\nLong-press browser tabs to close them. Swipe up on the home screen for the app drawer.");
+        TextView about = label(
+                "Launcher Browser 0.1.3-alpha\n"
+                        + "Native Android launcher + WebView browser + isolated widget host + icon packs + Shizuku shell + userscripts + Lite Extensions.\n\n"
+                        + "Third-party widgets no longer inflate inside the launcher process. Userscripts run only inside Launcher Browser.");
         about.setTextColor(Color.LTGRAY);
         root.addView(about);
         setContentView(scroll);
@@ -140,8 +166,14 @@ public final class SettingsActivity extends Activity {
     private void addAction(LinearLayout root, String text, Runnable action) {
         Button button = Ui.button(this, text);
         button.setGravity(Gravity.CENTER_VERTICAL);
-        button.setOnClickListener(v -> action.run());
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 50));
+        button.setOnClickListener(v -> {
+            try { action.run(); }
+            catch (Throwable error) {
+                Toast.makeText(this, "Action failed: " + error.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 50));
         params.setMargins(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
         root.addView(button, params);
     }
@@ -154,8 +186,13 @@ public final class SettingsActivity extends Activity {
         }
         RoleManager roles = getSystemService(RoleManager.class);
         if (roles != null && roles.isRoleAvailable(role)) {
-            if (roles.isRoleHeld(role)) Toast.makeText(this, "Already selected", Toast.LENGTH_SHORT).show();
-            else startActivityForResult(roles.createRequestRoleIntent(role), role.equals(RoleManager.ROLE_HOME) ? 3001 : 3002);
+            if (roles.isRoleHeld(role)) {
+                Toast.makeText(this, "Already selected", Toast.LENGTH_SHORT).show();
+            } else {
+                startActivityForResult(
+                        roles.createRequestRoleIntent(role),
+                        role.equals(RoleManager.ROLE_HOME) ? 3001 : 3002);
+            }
         }
     }
 
@@ -166,7 +203,10 @@ public final class SettingsActivity extends Activity {
         WebView temp = new WebView(this);
         temp.clearCache(true);
         temp.destroy();
-        Prefs.get(this).edit().remove(Prefs.BROWSER_URLS).remove(Prefs.BROWSER_SELECTED).apply();
+        Prefs.get(this).edit()
+                .remove(Prefs.BROWSER_URLS)
+                .remove(Prefs.BROWSER_SELECTED)
+                .apply();
         Toast.makeText(this, "Browser data cleared", Toast.LENGTH_SHORT).show();
     }
 }

@@ -13,8 +13,13 @@ final class Prefs {
     static final String ICON_PACK = "icon_pack";
     static final String PINNED_APPS = "pinned_apps";
     static final String WIDGET_IDS = "widget_ids";
+    static final String WIDGET_PENDING_LOAD = "widget_pending_load";
     static final String BROWSER_URLS = "browser_urls";
     static final String BROWSER_SELECTED = "browser_selected";
+    static final String USERSCRIPTS = "userscripts_json";
+    static final String EXT_CONTENT_BLOCKER = "extension_content_blocker";
+    static final String EXT_DARK_PAGES = "extension_dark_pages";
+    static final String EXT_HIDE_COOKIE_BANNERS = "extension_hide_cookie_banners";
 
     private Prefs() {}
 

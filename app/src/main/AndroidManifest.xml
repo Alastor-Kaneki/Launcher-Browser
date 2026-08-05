@@ -11,6 +11,8 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <intent><action android:name="org.adw.launcher.THEMES" /></intent>
+        <intent><action android:name="com.gau.go.launcherex.theme" /></intent>
+        <intent><action android:name="com.novalauncher.THEME" /></intent>
         <package android:name="moe.shizuku.privileged.api" />
     </queries>
 
@@ -33,16 +35,21 @@
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <activity
-            android:name=".ResilientHomeActivity"
+            android:name=".StableHomeActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|uiMode"
             android:exported="false"
             android:launchMode="singleTask"
             android:theme="@style/Theme.LauncherBrowser.Home" />
 
+        <activity
+            android:name=".ResilientHomeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.LauncherBrowser.Home" />
+
         <activity-alias
             android:name=".HomeActivity"
             android:exported="true"
-            android:targetActivity=".ResilientHomeActivity"
+            android:targetActivity=".StableHomeActivity"
             android:theme="@style/Theme.LauncherBrowser.Home">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -58,6 +65,22 @@
         <activity android:name=".AppDrawerActivity" android:exported="false" />
         <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".ShellActivity" android:exported="false" />
+
+        <activity
+            android:name=".WidgetSpaceActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|uiMode"
+            android:exported="false"
+            android:process=":widgets" />
+
+        <activity
+            android:name=".ExtensionsActivity"
+            android:exported="false"
+            android:process=":browser" />
+
+        <activity
+            android:name=".UserscriptManagerActivity"
+            android:exported="false"
+            android:process=":browser" />
 
         <activity
             android:name=".BrowserActivity"

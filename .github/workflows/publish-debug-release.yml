@@ -10,15 +10,19 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: launcher-browser-debug-release
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: v0.1.2-alpha-debug
-      RELEASE_TITLE: Launcher Browser 0.1.2 Alpha — Debug
-      APK_NAME: Launcher-Browser-0.1.2-alpha-debug.apk
+      RELEASE_TAG: v0.1.3-alpha-debug
+      RELEASE_TITLE: Launcher Browser 0.1.3 Alpha — Debug
+      APK_NAME: Launcher-Browser-0.1.3-alpha-debug.apk
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +35,12 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Restore persistent debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: launcher-browser-debug-keystore-v1
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
@@ -39,21 +49,27 @@ jobs:
 
       - name: Write release notes
         run: |
-          cat > release-notes.md <<'EOF'
-          ## Launcher Browser 0.1.2 Alpha — Debug
+          cat > release-notes.md <<'NOTES'
+          ## Launcher Browser 0.1.3 Alpha — Debug
 
-          Motorola/Android 15 immersive-mode compatibility fix.
+          Widget isolation, userscripts, and Lite Extensions.
 
-          ### Changes
-          - Stops using `Window#getInsetsController()` during early launcher startup
-          - Defers immersive mode until the decor view is attached
-          - Uses the decor view's insets controller instead of the OEM-fragile window path
-          - Falls back to legacy immersive flags if the modern API is unavailable or throws
-          - Keeps immersive-mode failures from taking down the launcher
+          ### Widget stability
+          - Removes third-party widget inflation from the launcher process
+          - Adds Widget Space in its own `:widgets` process
+          - Quarantines the widget that failed during the previous load
+          - Adds a one-tap Widget Space reset without affecting the launcher
 
-          ### Installation
-          This is a **debug build** using GitHub Actions' debug signing key. Uninstall an older build first if Android reports a signature mismatch.
-          EOF
+          ### Browser power tools
+          - Adds userscript and CSS userstyle import, editing, enable/disable, matching, and exclusions
+          - Supports `@name`, `@match`, `@include`, and `@exclude`
+          - Adds `GM_addStyle` and `GM_log`
+          - Adds Lite Extensions for basic ad/tracker blocking, dark pages, and cookie-banner hiding
+          - Recovers from WebView renderer crashes
+
+          ### Signing
+          This debug-release workflow now caches one repository-specific debug keystore for future debug updates. Android may require uninstalling 0.1.2 or older because those builds used changing CI debug keys.
+          NOTES
 
       - name: Create or update debug prerelease
         run: |

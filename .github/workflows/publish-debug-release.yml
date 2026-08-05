@@ -1,0 +1,65 @@
+name: Publish Debug Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-debug-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v0.1.1-alpha-debug
+      RELEASE_TITLE: Launcher Browser 0.1.1 Alpha — Debug
+      APK_NAME: Launcher-Browser-0.1.1-alpha-debug.apk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Prepare release asset
+        run: cp app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+
+      - name: Write release notes
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## Launcher Browser 0.1.1 Alpha — Debug
+
+          Crash-hardening update for the initial Launcher Browser alpha.
+
+          ### Changes
+          - Defensive launcher entry point with emergency fallback UI
+          - Fault isolation for malformed app entries, icons, icon packs, and stale widgets
+          - Protected AppWidgetHost lifecycle and restoration
+          - Local previous-crash diagnostics on the home screen
+          - Normal app-drawer launch entry
+
+          ### Installation
+          This is a **debug build** using GitHub Actions' debug signing key. Uninstall an older build first if Android reports a signature mismatch.
+          EOF
+
+      - name: Create or update debug prerelease
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "$RELEASE_TITLE" --notes-file release-notes.md --prerelease
+          else
+            gh release create "$RELEASE_TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file release-notes.md --prerelease
+          fi

@@ -21,6 +21,14 @@ final class Ui {
     static final int PANEL = Color.argb(190, 10, 10, 14);
     static final int PANEL_LIGHT = Color.argb(150, 25, 25, 32);
 
+    private static final int LEGACY_IMMERSIVE_FLAGS =
+            View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+
     private Ui() {}
 
     static int dp(View view, int value) {
@@ -61,23 +69,50 @@ final class Ui {
     }
 
     static void applyImmersive(Activity activity) {
-        if (!Prefs.immersive(activity)) return;
-        Window window = activity.getWindow();
+        if (activity == null || !Prefs.immersive(activity)) return;
+
+        final Window window;
+        final View decor;
+        try {
+            window = activity.getWindow();
+            if (window == null) return;
+            decor = window.getDecorView();
+            if (decor == null) return;
+        } catch (Throwable ignored) {
+            return;
+        }
+
+        // Some Motorola Android 15 builds crash inside Window#getInsetsController()
+        // while the DecorView has not been attached yet. Always defer the modern
+        // insets call and obtain the controller from the attached decor view instead.
+        decor.post(() -> {
+            if (activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
+            applyImmersiveNow(window, decor);
+        });
+    }
+
+    private static void applyImmersiveNow(Window window, View decor) {
         if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false);
-            WindowInsetsController controller = window.getInsetsController();
-            if (controller != null) {
-                controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
-                controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            try {
+                window.setDecorFitsSystemWindows(false);
+                WindowInsetsController controller = decor.getWindowInsetsController();
+                if (controller != null) {
+                    controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                    controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    return;
+                }
+            } catch (Throwable ignored) {
+                // OEM framework bug or an activity that is still detaching.
             }
-        } else {
-            window.getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+        applyLegacyImmersive(decor);
+    }
+
+    private static void applyLegacyImmersive(View decor) {
+        try {
+            decor.setSystemUiVisibility(LEGACY_IMMERSIVE_FLAGS);
+        } catch (Throwable ignored) {
+            // Immersive mode must never take down the launcher.
         }
     }
 

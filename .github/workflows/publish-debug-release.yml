@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: v0.1.1-alpha-debug
-      RELEASE_TITLE: Launcher Browser 0.1.1 Alpha — Debug
-      APK_NAME: Launcher-Browser-0.1.1-alpha-debug.apk
+      RELEASE_TAG: v0.1.2-alpha-debug
+      RELEASE_TITLE: Launcher Browser 0.1.2 Alpha — Debug
+      APK_NAME: Launcher-Browser-0.1.2-alpha-debug.apk
     steps:
       - uses: actions/checkout@v4
 
@@ -40,16 +40,16 @@ jobs:
       - name: Write release notes
         run: |
           cat > release-notes.md <<'EOF'
-          ## Launcher Browser 0.1.1 Alpha — Debug
+          ## Launcher Browser 0.1.2 Alpha — Debug
 
-          Crash-hardening update for the initial Launcher Browser alpha.
+          Motorola/Android 15 immersive-mode compatibility fix.
 
           ### Changes
-          - Defensive launcher entry point with emergency fallback UI
-          - Fault isolation for malformed app entries, icons, icon packs, and stale widgets
-          - Protected AppWidgetHost lifecycle and restoration
-          - Local previous-crash diagnostics on the home screen
-          - Normal app-drawer launch entry
+          - Stops using `Window#getInsetsController()` during early launcher startup
+          - Defers immersive mode until the decor view is attached
+          - Uses the decor view's insets controller instead of the OEM-fragile window path
+          - Falls back to legacy immersive flags if the modern API is unavailable or throws
+          - Keeps immersive-mode failures from taking down the launcher
 
           ### Installation
           This is a **debug build** using GitHub Actions' debug signing key. Uninstall an older build first if Android reports a signature mismatch.

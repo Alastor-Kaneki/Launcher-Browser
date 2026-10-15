@@ -43,6 +43,25 @@ The shell is available only after Shizuku or Sui is running and Launcher Browser
 
 Browser pages have no JavaScript bridge to the shell, and downloaded files cannot automatically execute commands.
 
+## Gallery downloader script
+
+`scripts/gallery-dl/download.py` is a standalone helper (not part of the APK) that wraps [gallery-dl](https://github.com/mikf/gallery-dl) to save image galleries from the sites it supports. It runs anywhere Python 3 does, including Termux on Android.
+
+```sh
+python3 -m pip install -r scripts/gallery-dl/requirements.txt
+
+# Preview the first five file URLs without downloading
+python3 scripts/gallery-dl/download.py "https://wallhaven.cc/search?q=nebula&categories=100&purity=100" -r 1-5 -n
+
+# Download them with JSON metadata into ./downloads
+python3 scripts/gallery-dl/download.py "https://wallhaven.cc/search?q=nebula&categories=100&purity=100" -r 1-5 -m
+
+# Batch from a file (one URL per line, '#' comments) into Termux's shared Downloads
+python3 scripts/gallery-dl/download.py -i urls.txt -o ~/storage/downloads/galleries
+```
+
+Each output directory keeps a `.gallery-dl-archive.sqlite3` so re-running skips files already saved (`--no-archive` turns this off). Anything after a bare `--` goes straight to gallery-dl, for example `-- --cookies-from-browser firefox` for sites that need a login, or `-- -o user-agent="MyTool/1.0"` for Wikimedia, which rejects generic user agents. The script exits with gallery-dl's status code, so a non-zero exit means at least one file failed.
+
 ## Known alpha limitations
 
 - Widgets currently use full-width fixed-height cards; freeform drag and resize are planned.

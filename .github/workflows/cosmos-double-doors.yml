@@ -1,0 +1,77 @@
+name: Cosmos Double Doors
+
+on:
+  push:
+    paths:
+      - 'mods/cosmos-double-doors/**'
+      - '.github/workflows/cosmos-double-doors.yml'
+  pull_request:
+    paths:
+      - 'mods/cosmos-double-doors/**'
+      - '.github/workflows/cosmos-double-doors.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Same NDK as Pocket Cosmos (app/build.gradle: ndkVersion).
+  NDK_VERSION: 28.2.13676358
+  MOD_DIR: mods/cosmos-double-doors
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ninja-build qemu-user-static zip
+
+      - name: Install Android NDK ${{ env.NDK_VERSION }}
+        run: |
+          # `|| true`: yes(1) dies of SIGPIPE, which would fail under pipefail.
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${NDK_VERSION}" > /dev/null
+          echo "NDK=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Build, test and package
+        run: ${MOD_DIR}/scripts/build.sh
+
+      - name: Inspector self-test against fake game libraries
+        run: |
+          CXX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang++"
+          for packing in none android relr; do
+            "$CXX" -shared -fPIC -O2 -std=c++20 -fvisibility=hidden \
+              -I"$MOD_DIR/tests" "$MOD_DIR/tests/FakeGame.cpp" \
+              -Wl,--pack-dyn-relocs=$packing -o "fake_$packing.so"
+            python3 "$MOD_DIR/tools/inspect_libminecraftpe.py" \
+              --min-block-type-slots 5 "fake_$packing.so"
+          done
+
+      - name: Collect release files
+        run: |
+          mkdir -p upload
+          cp "$MOD_DIR/dist/cosmos-double-doors.levipack" upload/
+          cp "$MOD_DIR/dist/cosmos-double-doors/libcosmos_double_doors.so" upload/
+          cp "$MOD_DIR/dist/symbols/libcosmos_double_doors.so" upload/libcosmos_double_doors.unstripped.so
+          git archive --format=zip --prefix=cosmos-double-doors-src/ \
+            -o upload/cosmos-double-doors-src.zip "HEAD:${MOD_DIR}"
+          file upload/*.so
+          sha256sum upload/* | tee upload/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cosmos-double-doors-levipack
+          path: ${{ env.MOD_DIR }}/dist/cosmos-double-doors.levipack
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cosmos-double-doors-all
+          path: upload/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,10 @@
+{
+  "type": "preload-native",
+  "name": "Cosmos Double Doors",
+  "author": "Alastor Kaneki",
+  "version": "1.0.0",
+  "entry": "libcosmos_double_doors.so",
+  "minecraft_versions": ["1.26.5*", "26.5*"],
+  "overwrite_files": [],
+  "overwrite_folders": []
+}

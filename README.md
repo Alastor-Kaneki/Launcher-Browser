@@ -69,3 +69,7 @@ gradle :app:assembleDebug
 `dev.alastorkaneki.launcherbrowser`
 
 The debug variant appends `.debug` so it can coexist with a future signed release.
+
+## Minecraft mods
+
+- [`mods/cosmos-double-doors`](mods/cosmos-double-doors/README.md) — Cosmos Double Doors, a native Pocket Cosmos (LeviLaunchroid) mod for Minecraft Bedrock that opens paired doors and trapdoors together. Built by the **Cosmos Double Doors** workflow.
